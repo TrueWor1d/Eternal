@@ -19,7 +19,7 @@ test('初始角色使用已批准数值并以满生命开始', () => {
   assert.equal(cultivationRequirement(player.stage), 100);
 });
 
-test('所有境界的小阶段均匀增长，境内累计三倍、跨境三倍，攻速独立增长', () => {
+test('所有境界的小阶段均匀增长，境内累计三倍、跨境三倍，空手攻速固定每秒一次', () => {
   for (const [realmIndex, realm] of REALMS.entries()) {
     const first = playerStatsForStage({ realmId: realm.id, stageIndex: 0 });
     const last = playerStatsForStage({ realmId: realm.id, stageIndex: realm.stages.length - 1 });
@@ -29,7 +29,7 @@ test('所有境界的小阶段均匀增长，境内累计三倍、跨境三倍�
       near(stats.healthRegen / stats.maxHealth, .01);
       near(stats.attack / stats.maxHealth, .1);
       near(stats.defense / stats.maxHealth, .02);
-      assert.equal(stats.attackSpeed, (10 + realmIndex) / 10);
+      assert.equal(stats.attackSpeed, 1);
       if (i > 0) {
         const previous = playerStatsForStage({ realmId: realm.id, stageIndex: i - 1 });
         near(stats.maxHealth / previous.maxHealth, 3 ** (1 / (realm.stages.length - 1)));
@@ -111,7 +111,7 @@ test('整条凡界成功结算后余额守恒，终点属性符合批准的累�
   assert.equal(stats.attack, 15_943_230);
   assert.equal(stats.defense, 3_188_646);
   assert.equal(stats.healthRegen, 1_594_323);
-  assert.equal(stats.attackSpeed, 1.6);
+  assert.equal(stats.attackSpeed, 1);
   assert.throws(() => settleSuccessfulBreakthrough(stage, balance));
 });
 

@@ -18,3 +18,5 @@
 | info.svg | Info 20 Regular |
 
 图标随游戏一起提供，不依赖 CDN。深色界面通过 CSS 统一显示为浅色。
+
+装备与铜钱图标另见`gear/README.md`，来自Game Icons，保留CC BY 3.0署名和许可。

@@ -15,7 +15,7 @@ test('初始敌怪名称统一占位，生命和奖励固定，未添加攻击�
   assert.equal(Object.hasOwn(enemy, 'healthRegen'), false);
 });
 
-test('点击一次只攻击一次，普通攻击不提前发放击杀奖励', () => {
+test('每次自动攻击沿用角色攻击值，普通攻击不提前发放击杀奖励', () => {
   const player = initialPlayer();
   const enemy = createNormalEnemy(player.stage);
   const result = attackEnemy(player, enemy);

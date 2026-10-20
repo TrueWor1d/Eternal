@@ -33,12 +33,12 @@ export function growthMultiplier(stage: Stage): number {
 
 export function playerStatsForStage(stage: Stage): PlayerStats {
   const multiplier = growthMultiplier(stage);
-  const realmIndex = REALMS.findIndex((item) => item.id === stage.realmId);
   return {
     maxHealth: BASE_PLAYER_STATS.maxHealth * multiplier,
     attack: BASE_PLAYER_STATS.attack * multiplier,
     defense: BASE_PLAYER_STATS.defense * multiplier,
-    attackSpeed: (10 + realmIndex) / 10,
+    // 当前为空手，攻速固定为每秒一次；武器属性在确认后接入。
+    attackSpeed: BASE_PLAYER_STATS.attackSpeed,
     healthRegen: BASE_PLAYER_STATS.healthRegen * multiplier,
   };
 }

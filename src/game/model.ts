@@ -13,10 +13,11 @@ export interface PlayerStats extends CombatStats {
   healthRegen: number;
 }
 
-// 基础物品信息；掉落、堆叠和使用规则在确认后补充。
+// 当前铜钱支持掉落和堆叠，其他物品规则在确认后补充。
 export interface InventoryItem {
   id: string;
   name: string;
+  quantity: number;
 }
 
 export interface Player {

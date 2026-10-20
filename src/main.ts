@@ -1,25 +1,28 @@
 import './style.css';
 import { CONFIRMED_RULES, PENDING_ITEMS } from './game/content.ts';
-import { initialPlayer } from './game/model.ts';
+import { initialPlayer, type InventoryItem } from './game/model.ts';
 import { REALMS, caveUnlocked, nextStage, stageLabel, transitionKind } from './game/realms.ts';
 import { breakthroughSummary, cultivationReady, regeneratePlayer } from './game/rules.ts';
 import { cultivationRequirement, monsterMaxHealth, playerStatsForStage } from './game/balance.ts';
 import { advanceMinorStage } from './game/progression.ts';
 import { attackEnemy, createNormalEnemy, respawnNormalEnemy } from './game/combat.ts';
+import { INVENTORY_PAGE_SIZE, paginateInventory } from './game/inventory.ts';
+import { COPPER_COIN } from './game/loot.ts';
 
 type View = 'adventure' | 'inventory' | 'techniques' | 'cave' | 'realms' | 'handbook';
 let player = initialPlayer();
 let enemy = createNormalEnemy({ realmId: 'qi', stageIndex: 0 });
 let normalKills = 0;
-let autoAttackEnabled = false;
-let autoAttackTimer: number | null = null;
+let inventoryPageIndex = 0;
+let inventoryOpenedPages = 1;
 let journalExpanded = false;
-let combatFeedback = '点击敌怪或攻击按钮，开始战斗。';
+let combatFeedback = '自动战斗已开始，空手每秒攻击一次。';
 const combatLog: { message: string; kind: 'attack' | 'victory' | 'breakthrough' }[] = [];
 const expandedRealms = new Set<string>(['qi']);
 const integerFormat = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 });
 const rateFormat = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 });
 const speedFormat = new Intl.NumberFormat('zh-CN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const views: { id: View; label: string; icon: string }[] = [
   { id: 'adventure', label: '战斗', icon: 'games' },
   { id: 'inventory', label: '背包', icon: 'backpack' },
@@ -32,6 +35,11 @@ const views: { id: View; label: string; icon: string }[] = [
 // Microsoft Fluent System Icons, bundled locally under the MIT license.
 function icon(name: string, className = ''): string {
   return `<img class="icon ${className}" src="./icons/${name}.svg" alt="" aria-hidden="true" />`;
+}
+
+// Game Icons (Lorc / Delapouite), CC BY 3.0; attribution bundled with the assets.
+function itemIcon(name: string, className = ''): string {
+  return `<img class="item-icon ${className}" src="./icons/gear/${name}.svg" alt="" aria-hidden="true" />`;
 }
 
 function escapeHTML(value: string): string {
@@ -108,38 +116,66 @@ function combatView(): string {
       <h2>当前怪物</h2>
       <div class="battle-stage" aria-label="战斗场景">
         <div class="combatant player-combatant">
-          <div class="combatant-visual"><img class="actor-sprite player-sprite" src="./actors/player.png" alt="修仙角色2D立绘" draggable="false" /></div>
+          <div class="combatant-visual"><img class="actor-sprite player-sprite pixel-sprite" src="./actors/player.png" alt="像素修真者主角" draggable="false" /></div>
           <div class="combatant-caption"><span class="actor-name">角色</span></div>
         </div>
         <div class="combatant enemy-combatant">
           <div class="combatant-visual">
             <div class="enemy-health"><div class="health-row"><span>生命</span><strong data-enemy-health>${rateFormat.format(enemy.health)} <small>/ ${integerFormat.format(enemy.maxHealth)}</small></strong></div><div class="health-track" role="progressbar" aria-label="怪物生命" aria-valuemin="0" aria-valuemax="${enemy.maxHealth}" aria-valuenow="${enemy.health}"><span style="width:${enemy.health / enemy.maxHealth * 100}%"></span></div></div>
-            <button type="button" class="enemy-target" data-attack aria-label="攻击${enemy.name}"><img class="actor-sprite enemy-sprite" src="./actors/wolf.png" alt="测试用小灰狼2D立绘" draggable="false" /></button>
+            <div class="enemy-portrait"><img class="actor-sprite enemy-sprite pixel-sprite" src="./actors/wolf.png" alt="测试用小灰狼2D立绘" draggable="false" /></div>
+            <div class="damage-layer" aria-hidden="true"></div>
           </div>
           <div class="combatant-caption"><h3>${enemy.name}</h3><p>普通怪 · ${stageLabel(enemy.stage)}</p></div>
         </div>
       </div>
       <p class="enemy-reward">击杀获得 ${integerFormat.format(enemy.cultivationReward)} 修为</p>
-      <div class="attack-actions"><button type="button" class="button primary attack-button" data-attack>攻击</button><label class="auto-toggle"><input type="checkbox" data-auto-attack aria-label="自动攻击" ${autoAttackEnabled ? 'checked' : ''} /><span class="switch" aria-hidden="true"></span><span>自动攻击</span></label></div>
-      <p class="attack-hint">点击一次，攻击一次</p>
+      <p class="combat-mode">自动战斗 · 空手每秒攻击 ${rateFormat.format(player.stats!.attackSpeed)} 次</p>
     </section>
     <section class="journal-panel" aria-label="最近记录">${journalMarkup()}</section>
   </div>`;
 }
 
-function inventoryView(): string {
-  const items = player.inventory;
-  // 空格仅用于展示，不作为背包容量上限；物品增加后补齐整行。
-  const visibleSlots = Math.max(24, Math.ceil(items.length / 8) * 8);
-  return `<section class="inventory-page" aria-labelledby="inventory-title">
-    <div class="section-title inventory-heading"><h2 id="inventory-title">角色背包</h2><span class="inventory-count">物品：${integerFormat.format(items.length)}</span></div>
-    <p class="page-description">存放打怪获得的掉落物品。</p>
-    <ul class="inventory-grid" aria-label="背包物品">${Array.from({ length: visibleSlots }, (_, index) => {
+function inventoryPageState() {
+  const page = paginateInventory(player.inventory, inventoryPageIndex, inventoryOpenedPages);
+  inventoryOpenedPages = page.pageCount;
+  return page;
+}
+
+function inventoryGridMarkup(items: readonly InventoryItem[]): string {
+  return Array.from({ length: INVENTORY_PAGE_SIZE }, (_, index) => {
       const item = items[index];
-      return item ? `<li class="inventory-slot occupied" title="${escapeHTML(item.name)}"><span>${escapeHTML(item.name)}</span></li>` : '<li class="inventory-slot" aria-hidden="true"></li>';
-    }).join('')}</ul>
-    ${items.length === 0 ? '<p class="inventory-empty" role="status">背包为空</p>' : ''}
-  </section>`;
+      return item ? `<li class="inventory-slot occupied" title="${escapeHTML(item.name)} ×${integerFormat.format(item.quantity)}" aria-label="${escapeHTML(item.name)}，数量 ${integerFormat.format(item.quantity)}">${item.id === COPPER_COIN.id ? itemIcon('coins', 'coin-icon') : ''}<span>${escapeHTML(item.name)}</span><span class="inventory-quantity">×${integerFormat.format(item.quantity)}</span></li>` : '<li class="inventory-slot" aria-hidden="true"></li>';
+    }).join('');
+}
+
+function inventoryView(): string {
+  const page = inventoryPageState();
+  return `<div class="inventory-page">
+    <section class="equipment-panel" aria-labelledby="equipment-title">
+      <div class="section-title inventory-heading"><h2 id="equipment-title">人物装备</h2></div>
+      <p class="page-description">暂无装备。</p>
+      <div class="equipment-display">
+        <div class="equipment-character"><img class="equipment-sprite pixel-sprite" src="./actors/player.png" alt="装备区像素修真者" draggable="false" /></div>
+        <ul class="equipment-grid" aria-label="人物装备槽">${[
+          ['头盔', 'helmet'], ['胸甲', 'chest'], ['左护腕', 'bracer'], ['右护腕', 'bracer'],
+          ['主武器', 'sword'], ['副武器', 'dagger'], ['左靴', 'boots'], ['右靴', 'boots'],
+        ].map(([name, image]) => `<li class="equipment-slot" aria-label="${name}，未装备">${itemIcon(image)}<span class="equipment-name">${name}</span><span class="equipment-empty">未装备</span></li>`).join('')}</ul>
+      </div>
+    </section>
+    <section class="inventory-panel" aria-labelledby="inventory-title">
+      <div class="section-title inventory-heading"><h2 id="inventory-title">角色背包</h2><span class="inventory-count">物品种类：${integerFormat.format(player.inventory.length)}</span></div>
+      <p class="page-description">存放打怪获得的掉落物品。</p>
+      <div class="inventory-storage">
+        <ul id="inventory-grid" class="inventory-grid" aria-label="背包物品">${inventoryGridMarkup(page.items)}</ul>
+        <nav class="inventory-pagination" aria-label="背包分页">
+          <button type="button" class="inventory-page-button" data-inventory-page="previous" aria-controls="inventory-grid" ${inventoryPageIndex === 0 ? 'disabled' : ''}>上一页</button>
+          <span class="inventory-page-label" aria-live="polite" aria-atomic="true" aria-label="第${inventoryPageIndex + 1}页，共${page.pageCount}页">${integerFormat.format(inventoryPageIndex + 1)} / ${integerFormat.format(page.pageCount)}</span>
+          <button type="button" class="inventory-page-button" data-inventory-page="next" aria-controls="inventory-grid">下一页</button>
+        </nav>
+        <p class="inventory-empty" role="status" ${page.items.length === 0 ? '' : 'hidden'}>${player.inventory.length === 0 && inventoryPageIndex === 0 ? '背包为空' : '本页暂无物品'}</p>
+      </div>
+    </section>
+  </div>`;
 }
 
 function techniquesView(): string {
@@ -162,7 +198,7 @@ function caveView(): string {
 
 function realmsView(): string {
   return `<div class="page-stack"><p class="page-description">凡界共七大境界。炼气分九层，其余境界分为初期、中期、后期、圆满。当前境界：${stageLabel(player.stage)}。</p>
-    <p class="page-description">同境界首尾基础属性累计3倍，跨大境界再变为3倍；自动攻速每跨一境增加0.1次/秒。展开境界可查看各阶段数值。</p>
+    <p class="page-description">同境界首尾基础属性累计3倍，跨大境界再变为3倍；空手攻速固定为每秒1次。展开境界可查看各阶段数值。</p>
     <div class="realm-path">${REALMS.map((realm, index) => {
       const active = realm.id === player.stage.realmId;
       const expanded = expandedRealms.has(realm.id);
@@ -223,6 +259,31 @@ function refreshPlayerProgress(): void {
   updateBar(document.querySelector<HTMLElement>('[role="progressbar"][aria-label="当前修为进度"]'), required === null ? 100 : player.cultivation, required ?? 100);
 }
 
+function refreshInventory(): void {
+  const grid = document.querySelector<HTMLElement>('.inventory-grid');
+  if (!grid) return;
+  const page = inventoryPageState();
+  grid.innerHTML = inventoryGridMarkup(page.items);
+  const count = document.querySelector<HTMLElement>('.inventory-count');
+  if (count) count.textContent = `物品种类：${integerFormat.format(player.inventory.length)}`;
+  const empty = document.querySelector<HTMLElement>('.inventory-empty');
+  if (empty) {
+    empty.hidden = page.items.length > 0;
+    const message = player.inventory.length === 0 && inventoryPageIndex === 0 ? '背包为空' : '本页暂无物品';
+    if (empty.textContent !== message) empty.textContent = message;
+  }
+  const previous = document.querySelector<HTMLButtonElement>('[data-inventory-page="previous"]');
+  if (previous) previous.disabled = inventoryPageIndex === 0;
+  const label = document.querySelector<HTMLElement>('.inventory-page-label');
+  if (label) {
+    const text = `${integerFormat.format(inventoryPageIndex + 1)} / ${integerFormat.format(page.pageCount)}`;
+    if (label.textContent !== text) {
+      label.textContent = text;
+      label.setAttribute('aria-label', `第${inventoryPageIndex + 1}页，共${page.pageCount}页`);
+    }
+  }
+}
+
 function refreshCombat(): void {
   const health = document.querySelector<HTMLElement>('[data-enemy-health]');
   if (health) health.innerHTML = `${rateFormat.format(enemy.health)} <small>/ ${integerFormat.format(enemy.maxHealth)}</small>`;
@@ -236,28 +297,54 @@ function refreshCombat(): void {
   refreshPlayerProgress();
 }
 
+function clearHitFeedback(): void {
+  const layer = document.querySelector('.damage-layer');
+  layer?.getAnimations({ subtree: true }).forEach((animation) => animation.cancel());
+  layer?.replaceChildren();
+  document.querySelector('.enemy-sprite')?.getAnimations().forEach((animation) => animation.cancel());
+}
+
+function showHitFeedback(damage: number): void {
+  if (reducedMotion.matches || damage <= 0) return;
+  const sprite = document.querySelector<HTMLElement>('.enemy-sprite');
+  const layer = document.querySelector<HTMLElement>('.damage-layer');
+  if (!sprite || !layer) return;
+  clearHitFeedback();
+  sprite.animate([
+    { filter: 'brightness(1)' }, { filter: 'brightness(1.65)', offset: 0.35 }, { filter: 'brightness(1)' },
+  ], { duration: 180, easing: 'ease-out' });
+  const number = document.createElement('span');
+  number.className = 'damage-number';
+  number.textContent = `−${rateFormat.format(damage)}`;
+  layer.append(number);
+  const animation = number.animate([
+    { opacity: 1, transform: 'translate(-50%, 0)' },
+    { opacity: 0, transform: 'translate(-50%, -24px)' },
+  ], { duration: 650, easing: 'ease-out', fill: 'forwards' });
+  // A single decorative number per visible hit, removed after finishing or cancellation.
+  void animation.finished.then(() => number.remove(), () => number.remove());
+}
+
+reducedMotion.addEventListener('change', () => {
+  if (reducedMotion.matches) clearHitFeedback();
+});
+
 function performAttack(): void {
   const result = attackEnemy(player, enemy);
   player = result.player;
   enemy = result.enemy;
   if (result.defeated) {
     normalKills++;
-    combatFeedback = `击败 ${enemy.name}，获得 ${rateFormat.format(result.cultivationGained)} 修为。`;
+    combatFeedback = `击败 ${enemy.name}，获得 ${rateFormat.format(result.cultivationGained)} 修为${result.loot ? `、${result.loot.name} ×${integerFormat.format(result.loot.quantity)}` : ''}。`;
     addCombatLog(combatFeedback, 'victory');
     enemy = respawnNormalEnemy(enemy);
   } else {
     combatFeedback = `对 ${enemy.name} 造成 ${rateFormat.format(result.damage)} 点伤害。`;
     addCombatLog(combatFeedback, 'attack');
   }
+  if (result.loot) refreshInventory();
   refreshCombat();
-}
-
-function setAutoAttack(enabled: boolean): void {
-  if (autoAttackTimer !== null) window.clearInterval(autoAttackTimer);
-  autoAttackEnabled = enabled;
-  autoAttackTimer = enabled ? window.setInterval(performAttack, 1000 / player.stats!.attackSpeed) : null;
-  const input = document.querySelector<HTMLInputElement>('[data-auto-attack]');
-  if (input) input.checked = enabled;
+  showHitFeedback(result.damage);
 }
 
 function render(focusHeading = false): void {
@@ -277,7 +364,12 @@ document.addEventListener('click', (event) => {
     document.querySelector<HTMLElement>('#main-content')?.focus();
     return;
   }
-  if (target.closest('[data-attack]')) { performAttack(); return; }
+  const inventoryPageButton = target.closest<HTMLButtonElement>('[data-inventory-page]');
+  if (inventoryPageButton && !inventoryPageButton.disabled) {
+    inventoryPageIndex = Math.max(0, inventoryPageIndex + (inventoryPageButton.dataset.inventoryPage === 'next' ? 1 : -1));
+    refreshInventory();
+    return;
+  }
   const journalToggle = target.closest<HTMLButtonElement>('[data-journal-toggle]');
   if (journalToggle) {
     journalExpanded = !journalExpanded;
@@ -297,7 +389,6 @@ document.addEventListener('click', (event) => {
     combatFeedback = `突破成功，当前境界 ${stageLabel(player.stage)}。`;
     addCombatLog(combatFeedback, 'breakthrough');
     render();
-    setAutoAttack(autoAttackEnabled);
   }
   const realmButton = target.closest<HTMLButtonElement>('[data-realm]');
   if (realmButton) {
@@ -308,12 +399,10 @@ document.addEventListener('click', (event) => {
     if (content) content.hidden = !expandedRealms.has(id);
   }
 });
-document.addEventListener('change', (event) => {
-  const input = event.target;
-  if (input instanceof HTMLInputElement && input.matches('[data-auto-attack]')) setAutoAttack(input.checked);
-});
 window.addEventListener('hashchange', () => render(true));
 render();
+// 战斗计时只启动一次，切换页面或突破不会追加计时器、重置攻击间隔。
+window.setInterval(performAttack, 1000 / player.stats!.attackSpeed);
 window.setInterval(() => {
   const previous = player.health;
   player = regeneratePlayer(player, 1);
