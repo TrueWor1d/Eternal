@@ -1,5 +1,7 @@
 import type { Stage } from './realms.ts';
 import { playerStatsForStage } from './balance.ts';
+import { emptyEquipment, testEquipment, type EquipmentLoadout, type EquipmentPart } from './equipment.ts';
+import type { ItemRarity } from './rarity.ts';
 
 export interface CombatStats {
   maxHealth: number;
@@ -13,11 +15,13 @@ export interface PlayerStats extends CombatStats {
   healthRegen: number;
 }
 
-// 当前铜钱支持掉落和堆叠，其他物品规则在确认后补充。
+// 铜钱支持堆叠；每件装备使用独立ID，包括两个戒指。
 export interface InventoryItem {
   id: string;
   name: string;
   quantity: number;
+  rarity: ItemRarity;
+  equipmentPart?: EquipmentPart;
 }
 
 export interface Player {
@@ -26,6 +30,7 @@ export interface Player {
   health: number | null;
   stats: PlayerStats | null;
   inventory: InventoryItem[];
+  equipment: EquipmentLoadout;
 }
 
 export interface AreaProgress {
@@ -38,7 +43,7 @@ export interface AreaProgress {
 export interface AreaDefinition {
   id: string;
   name: string;
-  killsRequired: number;
+  killsRequired: number | null;
 }
 
 export interface Retreat {
@@ -56,6 +61,7 @@ export function initialPlayer(): Player {
     cultivation: 0,
     health: stats.maxHealth,
     stats,
-    inventory: [],
+    inventory: testEquipment(),
+    equipment: emptyEquipment(),
   };
 }

@@ -26,7 +26,7 @@ test('铜钱掉率为20%，等于0.2时不掉落，未掉落时不抽数量', ()
 
 test('成功掉落的数量等概率映射为2、3、4、5，包含两端', () => {
   for (const [roll, quantity] of [[0, 2], [0.249999, 2], [0.25, 3], [0.499999, 3], [0.5, 4], [0.749999, 4], [0.75, 5], [0.999999, 5]]) {
-    assert.deepEqual(rollCopperCoinDrop(sequence(0, roll)), { id: COPPER_COIN.id, name: '铜钱', quantity });
+    assert.deepEqual(rollCopperCoinDrop(sequence(0, roll)), { id: COPPER_COIN.id, name: '铜钱', rarity: 'common', quantity });
   }
 });
 
@@ -39,7 +39,7 @@ test('非法随机值不能生成异常数量或绕过掉率判定', () => {
 
 test('铜钱累计在同一格，不改变其他物品或传入的数据', () => {
   // 仅测试夹具，不作为正式掉落物。
-  const other = { id: 'test_other', name: '隔离测试物品', quantity: 1 };
+  const other = { id: 'test_other', name: '隔离测试物品', rarity: 'common' as const, quantity: 1 };
   const original = [other];
   const first = addCopperCoins(original, 2);
   const second = addCopperCoins(first, 5);
@@ -60,17 +60,17 @@ test('只有致命一击抽取掉落，重复攻击已死亡怪物不再发放',
     player = result.player;
     enemy = result.enemy;
     assert.equal(result.loot, null);
-    assert.deepEqual(player.inventory, []);
+    assert.deepEqual(player.inventory, initialPlayer().inventory);
   }
   const result = attackEnemy(player, enemy, sequence(0.1, 0.999999));
   assert.equal(result.loot?.quantity, 5);
-  assert.equal(result.player.inventory[0].quantity, 5);
+  assert.equal(result.player.inventory.find((item) => item.id === COPPER_COIN.id)?.quantity, 5);
   assert.equal(result.player.cultivation, 10);
-  assert.deepEqual(player.inventory, []);
+  assert.deepEqual(player.inventory, initialPlayer().inventory);
   const repeated = attackEnemy(result.player, result.enemy, unexpected);
   assert.equal(repeated.loot, null);
   assert.equal(repeated.cultivationGained, 0);
-  assert.equal(repeated.player.inventory[0].quantity, 5);
+  assert.equal(repeated.player.inventory.find((item) => item.id === COPPER_COIN.id)?.quantity, 5);
 });
 
 test('未触发掉落仍发放原修为奖励，且不改变已有铜钱', () => {
@@ -96,7 +96,7 @@ test('连续击杀与刷新能累计铜钱，回血不清空背包', () => {
     }
     enemy = respawnNormalEnemy(enemy);
   }
-  assert.deepEqual(player.inventory, [{ id: COPPER_COIN.id, name: '铜钱', quantity: 7 }]);
+  assert.deepEqual(player.inventory, [...initialPlayer().inventory, { id: COPPER_COIN.id, name: '铜钱', rarity: 'common', quantity: 7 }]);
   assert.equal(player.cultivation, 20);
   assert.equal(enemy.health, 60);
   assert.deepEqual(regeneratePlayer({ ...player, health: 90 }, 1).inventory, player.inventory);

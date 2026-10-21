@@ -142,10 +142,11 @@ test('普通怪和首领生命按自身实力增长，所有阶段保持6次和3
   assert.throws(() => monsterMaxHealth({ realmId: 'qi', stageIndex: 9 }, 'normal'));
 });
 
-test('怪物当前只配置生命，不补攻击等默认属性，也不创建未知区域', () => {
+test('怪物当前只配置生命，不补攻击等默认属性，关卡清怪目标已配置', () => {
   assert.deepEqual(CONTENT.monsterHealth, { normal: 60, boss: 300 });
   assert.equal(Object.hasOwn(CONTENT.monsterHealth, 'attack'), false);
   assert.equal(Object.hasOwn(CONTENT.monsterHealth, 'defense'), false);
   assert.equal(Object.hasOwn(CONTENT.monsterHealth, 'healthRegen'), false);
-  assert.deepEqual(CONTENT.areas, []);
+  assert.equal(CONTENT.areas.length, 10);
+  assert.ok(CONTENT.areas.every((area) => area.killsRequired > 0));
 });

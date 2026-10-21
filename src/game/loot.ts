@@ -3,6 +3,7 @@ import type { InventoryItem } from './model.ts';
 export const COPPER_COIN = {
   id: 'copper_coin',
   name: '铜钱',
+  rarity: 'common',
   dropRate: 0.2,
   minQuantity: 2,
   maxQuantity: 5,
@@ -18,14 +19,14 @@ function sample(random: () => number): number {
 export function rollCopperCoinDrop(random: () => number = Math.random): InventoryItem | null {
   if (sample(random) >= COPPER_COIN.dropRate) return null;
   const quantity = COPPER_COIN.minQuantity + Math.floor(sample(random) * (COPPER_COIN.maxQuantity - COPPER_COIN.minQuantity + 1));
-  return { id: COPPER_COIN.id, name: COPPER_COIN.name, quantity };
+  return { id: COPPER_COIN.id, name: COPPER_COIN.name, rarity: COPPER_COIN.rarity, quantity };
 }
 
 /** 仅铜钱采用已确认的同格堆叠规则，不改变其他物品。 */
 export function addCopperCoins(inventory: readonly InventoryItem[], quantity: number): InventoryItem[] {
   if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new RangeError('铜钱数量必须是正整数');
   const index = inventory.findIndex((item) => item.id === COPPER_COIN.id);
-  if (index < 0) return [...inventory, { id: COPPER_COIN.id, name: COPPER_COIN.name, quantity }];
+  if (index < 0) return [...inventory, { id: COPPER_COIN.id, name: COPPER_COIN.name, rarity: COPPER_COIN.rarity, quantity }];
   const total = inventory[index].quantity + quantity;
   if (!Number.isSafeInteger(total) || total <= 0) throw new RangeError('铜钱总数量无效');
   return inventory.map((item, i) => i === index ? { ...item, quantity: total } : item);

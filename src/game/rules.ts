@@ -47,10 +47,11 @@ export function defeatBoss(areas: readonly AreaProgress[], index: number, killsR
 }
 
 export function validateAreaOrder(areas: readonly AreaDefinition[]): boolean {
-  return areas.every((area, index) =>
-    Number.isSafeInteger(area.killsRequired) && area.killsRequired > 0 &&
-    (index === 0 || area.killsRequired > areas[index - 1].killsRequired),
-  );
+  return areas.every((area, index) => {
+    const previous = index === 0 ? null : areas[index - 1].killsRequired;
+    return area.killsRequired !== null && Number.isSafeInteger(area.killsRequired) && area.killsRequired > 0 &&
+      (index === 0 || (previous !== null && area.killsRequired > previous));
+  });
 }
 
 export function cultivationReady(current: number, required: number | null): boolean {

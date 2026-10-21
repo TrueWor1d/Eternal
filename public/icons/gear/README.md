@@ -13,3 +13,6 @@ Icons made by Lorc and Delapouite, from [Game-icons.net](https://game-icons.net)
 | sword.svg | Lorc | lorc/broadsword.svg |
 | dagger.svg | Lorc | lorc/plain-dagger.svg |
 | coins.svg | Delapouite | delapouite/coins.svg |
+| necklace.svg | Lorc | lorc/gem-necklace.svg |
+| pants.svg | Lorc | lorc/trousers.svg |
+| ring.svg | Delapouite | delapouite/diamond-ring.svg |

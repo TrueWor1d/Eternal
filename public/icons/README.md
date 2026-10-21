@@ -20,3 +20,10 @@
 图标随游戏一起提供，不依赖 CDN。深色界面通过 CSS 统一显示为浅色。
 
 装备与铜钱图标另见`gear/README.md`，来自Game Icons，保留CC BY 3.0署名和许可。
+
+
+## 物品选中四角
+
+selection-corners.svg原样采用Google Material Icons的fullscreen图标（24px），Apache-2.0许可，见LICENSE-Material.txt。
+来源：https://github.com/google/material-design-icons/blob/master/src/navigation/fullscreen/materialicons/24px.svg
+用于九宫切片显示四角选中标记；不改变图标原始路径。

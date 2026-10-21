@@ -5,9 +5,9 @@ import { initialPlayer } from '../src/game/model.ts';
 import { advanceMinorStage } from '../src/game/progression.ts';
 import { playerStatsForStage } from '../src/game/balance.ts';
 
-test('初始敌怪名称统一占位，生命和奖励固定，未添加攻击属性', () => {
+test('初始敌怪使用第1关尖牙野鼠，生命和奖励固定，未添加攻击属性', () => {
   const enemy = createNormalEnemy({ realmId: 'qi', stageIndex: 0 });
-  assert.equal(enemy.name, '[待编辑]');
+  assert.equal(enemy.name, '尖牙野鼠');
   assert.equal(enemy.health, 60);
   assert.equal(enemy.maxHealth, 60);
   assert.equal(enemy.cultivationReward, 10);
@@ -45,7 +45,18 @@ test('第六次攻击击杀初始普通怪，奖励只结算一次', () => {
   const next = respawnNormalEnemy(enemy);
   assert.equal(next.health, 60);
   assert.equal(next.cultivationReward, 10);
-  assert.equal(next.name, '[待编辑]');
+  assert.equal(next.name, '尖牙野鼠');
+});
+
+test('重复刷怪保留选定名称与固定配置，不退回初始名称', () => {
+  const enemy = { ...createNormalEnemy({ realmId: 'qi', stageIndex: 1 }, '赤眼野兔'), health: 0 };
+  const next = respawnNormalEnemy(enemy);
+  assert.equal(next.name, '赤眼野兔');
+  assert.equal(next.health, enemy.maxHealth);
+  assert.equal(next.maxHealth, enemy.maxHealth);
+  assert.equal(next.cultivationReward, enemy.cultivationReward);
+  assert.deepEqual(next.stage, enemy.stage);
+  assert.equal(enemy.health, 0);
 });
 
 test('连续刷怪十只后可突破，旧怪的实力、血量和奖励不随玩家升级改变', () => {

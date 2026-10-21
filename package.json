@@ -1,7 +1,7 @@
 {
   "name": "cultivation-idle",
   "private": true,
-  "version": "0.1.6",
+  "version": "0.1.19",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",

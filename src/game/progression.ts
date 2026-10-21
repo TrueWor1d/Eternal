@@ -1,9 +1,19 @@
 import { cultivationRequirement, playerStatsForStage } from './balance.ts';
-import { nextStage, transitionKind } from './realms.ts';
+import { nextStage, REALMS, transitionKind } from './realms.ts';
 import type { Stage } from './realms.ts';
 import { cultivationReady } from './rules.ts';
 
-/** 只在突破已经成功后结算；大境界的闭关概率与失败损失不在此设置默认值。 */
+export function retreatConfig(stage: Stage) {
+  if (transitionKind(stage) !== 'major') throw new Error('当前阶段无需闭关');
+  const index = REALMS.findIndex((realm) => realm.id === stage.realmId);
+  return {
+    durationMs: 5000 + index * 1000,
+    successRate: [0.8, 0.7, 0.6, 0.5, 0.4, 0.3][index],
+    failureLoss: cultivationRequirement(stage)! * 0.1,
+  };
+}
+
+/** 只在突破已经成功后结算；闭关判定由上层使用retreatConfig和规则函数完成。 */
 export function settleSuccessfulBreakthrough(stage: Stage, cultivation: number) {
   const next = nextStage(stage);
   const required = cultivationRequirement(stage);
